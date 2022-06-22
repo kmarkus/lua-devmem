@@ -147,18 +147,14 @@ static int write_u64(lua_State *L)
 }
 
 static const luaL_Reg mmap_m [] = {
-
 	  { "read_u8", read_u8 },
 	  { "read_u16", read_u16 },
 	  { "read_u32", read_u32 },
 	  { "read_u64", read_u64 },
-
-
 	  { "write_u8", write_u8 },
 	  { "write_u16", write_u16 },
 	  { "write_u32", write_u32 },
 	  { "write_u64", write_u64 },
-
 	  { "__tostring", mmap_tostr },
 	  { "__gc", mmap_gc },
 	  { NULL, NULL },

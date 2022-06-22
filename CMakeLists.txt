@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD 11)
 include(GNUInstallDirs)
 
 find_package(PkgConfig REQUIRED)
-pkg_search_module(LUA lua5.4 lua5.3 luajit lua5.2 lua5.1 REQUIRED)
+pkg_search_module(LUA lua5.4 lua5.3 lua5.2 lua5.1 REQUIRED)
 
 message(STATUS "Found ${LUA_MODULE_NAME}")
 
