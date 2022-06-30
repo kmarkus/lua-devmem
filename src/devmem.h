@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <fcntl.h>
 
@@ -33,14 +35,21 @@
 
 /**
  * struct mmap
- * @base: pointer to start address of interest (i.e. page_base + offset)
- * @off: offset
- * @len: length in bytes
+ * @pg_base: pointer to first page that contains the region
+ * @pg_off: offset from pg_base to start of region
+ * @pg_len: len rounded up to page boundaries
+ * @off: user supplied base offset into file
+ * @len: user supplied desired length [B] of region
+ * @file: filename for pretty printing
  */
 struct mmap {
-	uint8_t *base;
+	uint8_t *pg_base;
+	off_t pg_off;
+	size_t pg_len;
+
 	off_t off;
 	size_t len;
+	char *file;
 };
 
 #endif /* __DEVMEM_H */
