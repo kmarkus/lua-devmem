@@ -19,7 +19,7 @@ static int mmap_gc(lua_State *L)
 static int mmap_new(lua_State *L)
 {
 	int fd;
-	off_t pg_base;
+	off_t page_start;
 	const char* file;
 	struct mmap* m = NULL;
 
@@ -38,14 +38,14 @@ static int mmap_new(lua_State *L)
 
 	m->len = (m->len==0) ? pg_size : m->len;
 
-	pg_base = rounddown(m->off, pg_size);
-	m->pg_off = m->off - pg_base;
+	page_start = rounddown(m->off, pg_size);
+	m->pg_off = m->off - page_start;
 	m->pg_len = roundup(m->pg_off + m->len, pg_size);
 
 	dbg("calling mmap %s: off: 0x%lx (pg_off: 0x%lx), len: 0x%lx (pg_len: 0x%lx)",
 	    m->file, m->off, m->pg_off, m->len, m->pg_len);
 
-	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, pg_base);
+	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, page_start);
 
 	if (m->pg_base == (void *) -1)
 		luaL_error(L, "mmap failed failed: %s", strerror(errno));
@@ -70,13 +70,27 @@ static int mmap_tostr(lua_State *L)
 	return 1;
 }
 
+static uint8_t* __addrof(struct mmap *m, size_t pos)
+{
+	return m->pg_base + m->pg_off + pos;
+}
+
+static int addrof(lua_State *L)
+{
+	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
+	size_t pos = luaL_checkinteger(L, 2);
+	lua_pushinteger(L, (uint64_t) __addrof(m, pos));
+	return 1;
+}
+
 /* read functions */
 static int read_u8(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
 	size_t pos = luaL_checkinteger(L, 2);
 	check_access(L,	m, pos,	sizeof(uint8_t));
-	lua_pushinteger(L, m->pg_base[m->pg_off + pos]);
+	uint8_t val = *((volatile uint8_t*) __addrof(m, pos));
+	lua_pushinteger(L, val);
 	return 1;
 }
 
@@ -85,7 +99,7 @@ static int read_u16(lua_State *L)
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
 	size_t pos = luaL_checkinteger(L, 2);
 	check_access(L,	m, pos,	sizeof(uint16_t));
-	uint16_t val = *((volatile uint16_t*) (m->pg_base + m->pg_off + pos));
+	uint16_t val = *((volatile uint16_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
 }
@@ -95,7 +109,7 @@ static int read_u32(lua_State *L)
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
 	size_t pos = luaL_checkinteger(L, 2);
 	check_access(L,	m, pos,	sizeof(uint32_t));
-	uint32_t val = *((volatile uint32_t*) (m->pg_base + m->pg_off + pos));
+	uint32_t val = *((volatile uint32_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
 }
@@ -105,7 +119,7 @@ static int read_u64(lua_State *L)
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
 	size_t pos = luaL_checkinteger(L, 2);
 	check_access(L,	m, pos,	sizeof(uint64_t));
-	uint64_t val = *((volatile uint64_t*) (m->pg_base + m->pg_off + pos));
+	uint64_t val = *((volatile uint64_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
 }
@@ -117,7 +131,7 @@ static int write_u8(lua_State *L)
 	size_t pos = luaL_checkinteger(L, 2);
 	uint8_t	val = luaL_checkinteger(L, 3);
 	check_access(L,	m, pos,	sizeof(val));
-	*((volatile uint8_t*) (m->pg_base + m->pg_off + pos)) = val;
+	*((volatile uint8_t*) __addrof(m, pos)) = val;
 	return 0;
 }
 
@@ -127,7 +141,7 @@ static int write_u16(lua_State *L)
 	off_t pos = luaL_checkinteger(L, 2);
 	uint16_t val = luaL_checkinteger(L, 3);
 	check_access(L,	m, pos,	sizeof(val));
-	*((volatile uint16_t*) (m->pg_base + m->pg_off + pos)) = val;
+	*((volatile uint16_t*) __addrof(m, pos)) = val;
 	return 0;
 }
 
@@ -137,7 +151,7 @@ static int write_u32(lua_State *L)
 	off_t pos = luaL_checkinteger(L, 2);
 	uint32_t val = luaL_checkinteger(L, 3);
 	check_access(L,	m, pos,	sizeof(val));
-	*((volatile uint32_t*) (m->pg_base + m->pg_off + pos)) = val;
+	*((volatile uint32_t*) __addrof(m, pos)) = val;
 	return 0;
 }
 
@@ -147,7 +161,7 @@ static int write_u64(lua_State *L)
 	off_t pos = luaL_checkinteger(L, 2);
 	uint64_t val = luaL_checkinteger(L, 3);
 	check_access(L,	m, pos,	sizeof(val));
-	*((volatile uint64_t*) (m->pg_base + m->pg_off + pos)) = val;
+	*((volatile uint64_t*) __addrof(m, pos)) = val;
 	return 0;
 }
 
@@ -160,6 +174,7 @@ static const luaL_Reg mmap_m [] = {
 	  { "write_u16", write_u16 },
 	  { "write_u32", write_u32 },
 	  { "write_u64", write_u64 },
+	  { "addrof", addrof },
 	  { "__tostring", mmap_tostr },
 	  { "__gc", mmap_gc },
 	  { NULL, NULL },
