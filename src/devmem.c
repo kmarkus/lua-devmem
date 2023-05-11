@@ -35,6 +35,8 @@ static int mmap_new(lua_State *L)
 	m->off = luaL_checkinteger(L, 3);	/* user offset in file */
 	m->file = strdup(file);
 
+	m->len = (m->len != 0) ? m->len : pg_size;
+
 	fd = open(file, O_RDWR | O_SYNC);
 
 	if(fd<0)
