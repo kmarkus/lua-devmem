@@ -36,7 +36,7 @@
 /**
  * struct mmap
  * @pg_base: pointer to first page that contains the region
- * @pg_off: offset from pg_base to start of region
+ * @off_in_pg: offset from pg_base to start of region
  * @pg_len: len rounded up to page boundaries
  * @off: user supplied base offset into file
  * @len: user supplied desired length [B] of region
@@ -44,7 +44,7 @@
  */
 struct mmap {
 	uint8_t *pg_base;
-	off_t pg_off;
+	off_t off_in_pg;
 	size_t pg_len;
 
 	off_t off;

@@ -19,35 +19,37 @@ static int mmap_gc(lua_State *L)
 static int mmap_new(lua_State *L)
 {
 	int fd;
-	off_t page_start;
+	off_t pg_off;
 	const char* file;
 	struct mmap* m = NULL;
 
 	const size_t pg_size = sysconf(_SC_PAGESIZE);
+	dbg("pg_size: 0x%x", pg_size);
 
 	m = (struct mmap*) lua_newuserdata(L, sizeof(struct mmap));
 	luaL_getmetatable(L, MMAP_MT);
 	lua_setmetatable(L, -2);
 
 	file = luaL_checkstring(L, 1);
-	m->off = luaL_checkinteger(L, 2);
-	m->len = luaL_checkinteger(L, 3);
+	m->len = luaL_checkinteger(L, 2);	/* user len */
+	m->off = luaL_checkinteger(L, 3);	/* user offset in file */
 	m->file = strdup(file);
 
 	fd = open(file, O_RDWR | O_SYNC);
 
-	m->len = (m->len==0) ? pg_size : m->len;
+	if(fd<0)
+		luaL_error(L, "failed to open %s: %s", file, strerror(errno));
 
-	page_start = rounddown(m->off, pg_size);
-	m->pg_off = m->off - page_start;
-	m->pg_len = roundup(m->pg_off + m->len, pg_size);
+	pg_off = rounddown(m->off, pg_size);			/* offset rounded down to pg boundary */
+	m->off_in_pg = m->off - pg_off;				/* offset within a page */
+	m->pg_len = roundup(m->off_in_pg + m->len, pg_size);	/* length rounded up to pg boundary */
 
-	dbg("calling mmap %s: off: 0x%lx (pg_off: 0x%lx), len: 0x%lx (pg_len: 0x%lx)",
-	    m->file, m->off, m->pg_off, m->len, m->pg_len);
+	dbg("mmap %s: length: 0x%x, offset: 0x%x (off_in_pg: 0x%x, user off: 0x%lx, user len: 0x%lx)",
+	    m->file, m->pg_len, pg_off, m->off_in_pg, m->off, m->len);
 
-	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, page_start);
+	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, pg_off);
 
-	if (m->pg_base == (void *) -1)
+	if (m->pg_base == MAP_FAILED)
 		luaL_error(L, "mmap failed failed: %s", strerror(errno));
 
         close(fd);
@@ -65,14 +67,14 @@ static int mmap_tostr(lua_State *L)
 	char buf[128];
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
 	snprintf(buf, sizeof(buf), "mmap %s at %p, off: 0x%lx (0x%lx), len: 0x%lx (0x%lx)",
-		 m->file, m->pg_base, m->off, (m->off - m->pg_off), m->len, m->pg_len);
+		 m->file, m->pg_base, m->off, (m->off - m->off_in_pg), m->len, m->pg_len);
 	lua_pushstring(L, buf);
 	return 1;
 }
 
 static uint8_t* __addrof(struct mmap *m, size_t pos)
 {
-	return m->pg_base + m->pg_off + pos;
+	return m->pg_base + m->off_in_pg + pos;
 }
 
 static int addrof(lua_State *L)
