@@ -134,6 +134,16 @@ static int read_u64(lua_State *L)
 	return 1;
 }
 
+static int read_float(lua_State *L)
+{
+	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
+	size_t pos = luaL_checkinteger(L, 2);
+	check_access(L,	m, pos,	sizeof(float));
+	float val = *((volatile float*) __addrof(m, pos));
+	lua_pushnumber(L, val);
+	return 1;
+}
+
 /* write functions */
 static int write_u8(lua_State *L)
 {
@@ -175,15 +185,27 @@ static int write_u64(lua_State *L)
 	return 0;
 }
 
+static int write_float(lua_State *L)
+{
+	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
+	off_t pos = luaL_checkinteger(L, 2);
+	float val = luaL_checknumber(L, 3);
+	check_access(L,	m, pos,	sizeof(val));
+	*((volatile float*) __addrof(m, pos)) = val;
+	return 0;
+}
+
 static const luaL_Reg mmap_m [] = {
 	  { "read_u8", read_u8 },
 	  { "read_u16", read_u16 },
 	  { "read_u32", read_u32 },
 	  { "read_u64", read_u64 },
+	  { "read_float", read_float },
 	  { "write_u8", write_u8 },
 	  { "write_u16", write_u16 },
 	  { "write_u32", write_u32 },
 	  { "write_u64", write_u64 },
+	  { "write_float", write_float },
 	  { "addrof", addrof },
 	  { "__tostring", mmap_tostr },
 	  { "__gc", mmap_gc },
