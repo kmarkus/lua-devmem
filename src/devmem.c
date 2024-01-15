@@ -33,10 +33,10 @@ static int mmap_new(lua_State *L)
 	file = luaL_checkstring(L, 1);
 	m->off = luaL_checkinteger(L, 2);	/* user offset in file */
 
-	if (lua_type(L, 3) == LUA_TNIL) {
-		m->len = pg_size;
-	} else {
+	if (lua_gettop(L) >= 4) {
 		m->len = luaL_checkinteger(L, 3);	/* user len */
+	} else {
+		m->len = pg_size;
 	}
 
 	m->file = strdup(file);
