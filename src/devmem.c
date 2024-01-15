@@ -27,13 +27,10 @@ static int mmap_new(lua_State *L)
 	dbg("pg_size: 0x%x", pg_size);
 
 	m = (struct mmap*) lua_newuserdata(L, sizeof(struct mmap));
-	luaL_getmetatable(L, MMAP_MT);
-	lua_setmetatable(L, -2);
-
 	file = luaL_checkstring(L, 1);
 	m->off = luaL_checkinteger(L, 2);	/* user offset in file */
 
-	if (lua_gettop(L) >= 4) {
+	if (lua_gettop(L) >= 3) {
 		m->len = luaL_checkinteger(L, 3);	/* user len */
 	} else {
 		m->len = pg_size;
@@ -58,7 +55,10 @@ static int mmap_new(lua_State *L)
 	if (m->pg_base == MAP_FAILED)
 		luaL_error(L, "mmap failed failed: %s", strerror(errno));
 
-        close(fd);
+	luaL_getmetatable(L, MMAP_MT);
+	lua_setmetatable(L, -2);
+
+	close(fd);
 	return 1;
 }
 
