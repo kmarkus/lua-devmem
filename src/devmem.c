@@ -18,27 +18,28 @@ static int mmap_gc(lua_State *L)
  */
 static int mmap_new(lua_State *L)
 {
+	const size_t pg_size = sysconf(_SC_PAGESIZE);
+
 	int fd;
-	off_t pg_off;
+	off_t pg_off, user_off;
 	const char* file;
 	struct mmap* m = NULL;
+	size_t user_len = pg_size;
 
-	const size_t pg_size = sysconf(_SC_PAGESIZE);
 	dbg("pg_size: 0x%x", pg_size);
+
+	file = luaL_checkstring(L, 1);
+	user_off = luaL_checkinteger(L, 2);
+	if (lua_gettop(L) >= 3) {
+		user_len = luaL_checkinteger(L, 3);
+	}
 
 	m = (struct mmap*) lua_newuserdata(L, sizeof(struct mmap));
 	luaL_getmetatable(L, MMAP_MT);
 	lua_setmetatable(L, -2);
 
-	file = luaL_checkstring(L, 1);
-	m->off = luaL_checkinteger(L, 2);	/* user offset in file */
-
-	if (lua_type(L, 3) == LUA_TNIL) {
-		m->len = pg_size;
-	} else {
-		m->len = luaL_checkinteger(L, 3);	/* user len */
-	}
-
+	m->len = user_len;
+	m->off = user_off;
 	m->file = strdup(file);
 
 	fd = open(file, O_RDWR | O_SYNC);
@@ -58,7 +59,8 @@ static int mmap_new(lua_State *L)
 	if (m->pg_base == MAP_FAILED)
 		luaL_error(L, "mmap failed failed: %s", strerror(errno));
 
-        close(fd);
+
+	close(fd);
 	return 1;
 }
 
