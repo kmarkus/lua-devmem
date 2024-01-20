@@ -26,7 +26,7 @@ static int mmap_new(lua_State *L)
 	struct mmap* m = NULL;
 	size_t user_len = pg_size;
 
-	dbg("pg_size: 0x%x", pg_size);
+	dbg("pg_size: 0x%zx", pg_size);
 
 	file = luaL_checkstring(L, 1);
 	user_off = luaL_checkinteger(L, 2);
@@ -51,7 +51,7 @@ static int mmap_new(lua_State *L)
 	m->off_in_pg = m->off - pg_off;				/* offset within a page */
 	m->pg_len = roundup(m->off_in_pg + m->len, pg_size);	/* length rounded up to pg boundary */
 
-	dbg("mmap %s: length: 0x%x, offset: 0x%x (off_in_pg: 0x%x, user off: 0x%lx, user len: 0x%lx)",
+	dbg("mmap %s: length: 0x%zx, offset: 0x%zx (off_in_pg: 0x%zx, user off: 0x%lx, user len: 0x%lx)",
 	    m->file, m->pg_len, pg_off, m->off_in_pg, m->off, m->len);
 
 	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, pg_off);
