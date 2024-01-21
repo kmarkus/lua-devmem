@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/param.h>
 #include <fcntl.h>
 
 #include "math.h"
@@ -30,6 +31,8 @@
 #else
 # define dbg(fmt, args...)  do {} while (0)
 #endif
+
+#define rounddown(x, y) (((x) / (y)) * (y))
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
