@@ -1,7 +1,5 @@
 /* SPDX-License-Identifier: LGPL-2.0+ */
 
-#define DEBUG
-
 #include "devmem.h"
 
 static int mmap_gc(lua_State *L)
