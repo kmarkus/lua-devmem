@@ -56,9 +56,10 @@ static int mmap_new(lua_State *L)
 
 	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, pg_off);
 
-	if (m->pg_base == MAP_FAILED)
+	if (m->pg_base == MAP_FAILED) {
+		close(fd);
 		luaL_error(L, "mmap failed failed: %s", strerror(errno));
-
+	}
 
 	close(fd);
 	return 1;
