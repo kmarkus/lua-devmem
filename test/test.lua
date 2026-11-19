@@ -59,6 +59,7 @@ expect_err("len 0", "invalid length", devmem.new, file, 0, 0)
 expect_err("len -1", "invalid length", devmem.new, file, 16, -1)
 expect_err("neg offset", "offset", devmem.new, file, -4096, 16)
 expect_err("open fail", "failed to open", devmem.new, "/nonexistent/devmem", 0)
+expect_err("mmap fail", "mmap failed", devmem.new, "/dev/null", 0)
 check("default len", pcall(devmem.new, file, 0))
 
 -- gc of failed and good mappings must not crash
