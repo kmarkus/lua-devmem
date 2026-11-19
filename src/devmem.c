@@ -71,13 +71,17 @@ static int mmap_new(lua_State *L)
 	return 1;
 }
 
-/* get position from arg, check [pos, pos + len) lies within the region */
+/* get position from arg, check [pos, pos + len) lies within the region
+ * and is aligned to len */
 static size_t check_pos(lua_State *L, struct mmap *m, int arg, size_t len)
 {
 	lua_Integer pos = luaL_checkinteger(L, arg);
 
 	if (pos < 0 || (uint64_t)pos > m->len || len > m->len - (size_t)pos)
 		luaL_error(L, "access out of range");
+	/* unaligned device memory access traps (SIGBUS) on most archs */
+	if ((uintptr_t)(m->pg_base + m->off_in_pg + pos) & (len - 1))
+		luaL_error(L, "unaligned access");
 	return pos;
 }
 

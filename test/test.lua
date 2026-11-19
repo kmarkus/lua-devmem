@@ -46,6 +46,8 @@ expect_err("u8 past end", "out of range", m.read_u8, m, 16)
 expect_err("u32 crossing end", "out of range", m.read_u32, m, 13)
 expect_err("neg pos read", "out of range", m.read_u32, m, -2)
 expect_err("neg pos write", "out of range", m.write_u32, m, -2, 1)
+expect_err("unaligned u16", "unaligned", m.read_u16, m, 1)
+expect_err("unaligned u32", "unaligned", m.write_u32, m, 2, 1)
 expect_err("huge pos", "out of range", m.read_u8, m, math.maxinteger or 2^52)
 
 -- writes stayed inside the region

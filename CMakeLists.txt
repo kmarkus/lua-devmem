@@ -33,8 +33,11 @@ set(DEVMEM_INST_DIR ${CMAKE_INSTALL_PREFIX}/lib/lua/${LUA_VER}/)
 
 add_library(devmem SHARED ${DEVMEM_SRCS})
 target_compile_options(devmem PRIVATE -Wall -Wextra)
+# 64-bit off_t for physical addresses >= 2 GiB on 32-bit targets
+target_compile_definitions(devmem PRIVATE _FILE_OFFSET_BITS=64)
 target_include_directories(devmem PRIVATE ${LUA_INCLUDE_DIRS})
-target_link_libraries(devmem ${LUA_LIBRARIES})
+# no linking against liblua: symbols come from the interpreter, linking
+# would load a second VM into statically linked interpreters
 set_target_properties(devmem PROPERTIES PREFIX "")
 install(TARGETS devmem LIBRARY DESTINATION ${DEVMEM_INST_DIR})
 
