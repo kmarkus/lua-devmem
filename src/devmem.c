@@ -19,26 +19,32 @@ static int mmap_new(lua_State *L)
 	const size_t pg_size = sysconf(_SC_PAGESIZE);
 
 	int fd;
-	off_t pg_off, user_off;
+	off_t pg_off;
 	const char* file;
 	struct mmap* m = NULL;
-	size_t user_len = pg_size;
+	lua_Integer user_off, user_len;
 
 	dbg("pg_size: 0x%zx", pg_size);
 
 	file = luaL_checkstring(L, 1);
 	user_off = luaL_checkinteger(L, 2);
-	if (lua_gettop(L) >= 3) {
-		user_len = luaL_checkinteger(L, 3);
-	}
+	user_len = luaL_optinteger(L, 3, pg_size);
+
+	luaL_argcheck(L, user_off >= 0, 2, "offset must be >= 0");
+	/* keep off_in_pg + len + pg_size within size_t */
+	luaL_argcheck(L, user_len > 0 && (uint64_t)user_len <= SIZE_MAX - 2 * pg_size,
+		      3, "invalid length");
 
 	m = (struct mmap*) lua_newuserdata(L, sizeof(struct mmap));
+	memset(m, 0, sizeof(*m));	/* __gc runs on all error paths below */
 	luaL_getmetatable(L, MMAP_MT);
 	lua_setmetatable(L, -2);
 
 	m->len = user_len;
 	m->off = user_off;
 	m->file = strdup(file);
+	if (!m->file)
+		luaL_error(L, "out of memory");
 
 	fd = open(file, O_RDWR | O_SYNC);
 
@@ -49,32 +55,39 @@ static int mmap_new(lua_State *L)
 	m->off_in_pg = m->off - pg_off;				/* offset within a page */
 	m->pg_len = roundup(m->off_in_pg + m->len, pg_size);	/* length rounded up to pg boundary */
 
-	dbg("mmap %s: length: 0x%zx, offset: 0x%zx (off_in_pg: 0x%zx, user off: 0x%lx, user len: 0x%lx)",
-	    m->file, m->pg_len, pg_off, m->off_in_pg, m->off, m->len);
+	dbg("mmap %s: length: 0x%zx, offset: 0x%llx (off_in_pg: 0x%llx, user off: 0x%llx, user len: 0x%zx)",
+	    m->file, m->pg_len, (unsigned long long) pg_off, (unsigned long long) m->off_in_pg,
+	    (unsigned long long) m->off, m->len);
 
 	m->pg_base = mmap(0, m->pg_len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, pg_off);
 
 	if (m->pg_base == MAP_FAILED) {
+		m->pg_base = NULL;
 		close(fd);
-		luaL_error(L, "mmap failed failed: %s", strerror(errno));
+		luaL_error(L, "mmap failed: %s", strerror(errno));
 	}
 
 	close(fd);
 	return 1;
 }
 
-static void check_access(lua_State *L, struct mmap *m, size_t pos, size_t len)
+/* get position from arg, check [pos, pos + len) lies within the region */
+static size_t check_pos(lua_State *L, struct mmap *m, int arg, size_t len)
 {
-	if (pos + len > m->len)
+	lua_Integer pos = luaL_checkinteger(L, arg);
+
+	if (pos < 0 || (uint64_t)pos > m->len || len > m->len - (size_t)pos)
 		luaL_error(L, "access out of range");
+	return pos;
 }
 
 static int mmap_tostr(lua_State *L)
 {
 	char buf[128];
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	snprintf(buf, sizeof(buf), "mmap %s at %p, off: 0x%lx (0x%lx), len: 0x%lx (0x%lx)",
-		 m->file, m->pg_base, m->off, (m->off - m->off_in_pg), m->len, m->pg_len);
+	snprintf(buf, sizeof(buf), "mmap %s at %p, off: 0x%llx (0x%llx), len: 0x%zx (0x%zx)",
+		 m->file, m->pg_base, (unsigned long long) m->off,
+		 (unsigned long long) (m->off - m->off_in_pg), m->len, m->pg_len);
 	lua_pushstring(L, buf);
 	return 1;
 }
@@ -88,7 +101,7 @@ static int addrof(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
 	size_t pos = luaL_checkinteger(L, 2);
-	lua_pushinteger(L, (uint64_t) __addrof(m, pos));
+	lua_pushinteger(L, (uintptr_t) __addrof(m, pos));
 	return 1;
 }
 
@@ -96,8 +109,7 @@ static int addrof(lua_State *L)
 static int read_u8(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
-	check_access(L,	m, pos,	sizeof(uint8_t));
+	size_t pos = check_pos(L, m, 2, sizeof(uint8_t));
 	uint8_t val = *((volatile uint8_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
@@ -106,8 +118,7 @@ static int read_u8(lua_State *L)
 static int read_u16(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
-	check_access(L,	m, pos,	sizeof(uint16_t));
+	size_t pos = check_pos(L, m, 2, sizeof(uint16_t));
 	uint16_t val = *((volatile uint16_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
@@ -116,8 +127,7 @@ static int read_u16(lua_State *L)
 static int read_u32(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
-	check_access(L,	m, pos,	sizeof(uint32_t));
+	size_t pos = check_pos(L, m, 2, sizeof(uint32_t));
 	uint32_t val = *((volatile uint32_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
@@ -126,8 +136,7 @@ static int read_u32(lua_State *L)
 static int read_u64(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
-	check_access(L,	m, pos,	sizeof(uint64_t));
+	size_t pos = check_pos(L, m, 2, sizeof(uint64_t));
 	uint64_t val = *((volatile uint64_t*) __addrof(m, pos));
 	lua_pushinteger(L, val);
 	return 1;
@@ -136,8 +145,7 @@ static int read_u64(lua_State *L)
 static int read_float(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
-	check_access(L,	m, pos,	sizeof(float));
+	size_t pos = check_pos(L, m, 2, sizeof(float));
 	float val = *((volatile float*) __addrof(m, pos));
 	lua_pushnumber(L, val);
 	return 1;
@@ -147,9 +155,8 @@ static int read_float(lua_State *L)
 static int write_u8(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
+	size_t pos = check_pos(L, m, 2, sizeof(uint8_t));
 	uint8_t	val = luaL_checkinteger(L, 3);
-	check_access(L,	m, pos,	sizeof(val));
 	*((volatile uint8_t*) __addrof(m, pos)) = val;
 	return 0;
 }
@@ -157,9 +164,8 @@ static int write_u8(lua_State *L)
 static int write_u16(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	off_t pos = luaL_checkinteger(L, 2);
+	size_t pos = check_pos(L, m, 2, sizeof(uint16_t));
 	uint16_t val = luaL_checkinteger(L, 3);
-	check_access(L,	m, pos,	sizeof(val));
 	*((volatile uint16_t*) __addrof(m, pos)) = val;
 	return 0;
 }
@@ -167,9 +173,8 @@ static int write_u16(lua_State *L)
 static int write_u32(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	off_t pos = luaL_checkinteger(L, 2);
+	size_t pos = check_pos(L, m, 2, sizeof(uint32_t));
 	uint32_t val = luaL_checkinteger(L, 3);
-	check_access(L,	m, pos,	sizeof(val));
 	*((volatile uint32_t*) __addrof(m, pos)) = val;
 	return 0;
 }
@@ -177,9 +182,8 @@ static int write_u32(lua_State *L)
 static int write_u64(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	off_t pos = luaL_checkinteger(L, 2);
+	size_t pos = check_pos(L, m, 2, sizeof(uint64_t));
 	uint64_t val = luaL_checkinteger(L, 3);
-	check_access(L,	m, pos,	sizeof(val));
 	*((volatile uint64_t*) __addrof(m, pos)) = val;
 	return 0;
 }
@@ -187,9 +191,8 @@ static int write_u64(lua_State *L)
 static int write_float(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	off_t pos = luaL_checkinteger(L, 2);
+	size_t pos = check_pos(L, m, 2, sizeof(float));
 	float val = luaL_checknumber(L, 3);
-	check_access(L,	m, pos,	sizeof(val));
 	*((volatile float*) __addrof(m, pos)) = val;
 	return 0;
 }
