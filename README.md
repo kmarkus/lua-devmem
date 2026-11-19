@@ -16,7 +16,7 @@ drivers* on embedded Linux.
 - **aligned, fixed width accesses**: 8, 16, 32 and 64 bit and `float`, done as
   a single `volatile` access of that width
 - **any offset**: regions do not need to be page aligned
-- **portable**: Lua 5.1 to 5.4 and LuaJIT, 32 and 64 bit
+- **portable**: Lua 5.1, 5.3, 5.4, 5.5 and LuaJIT, 32 and 64 bit
 - **minimal**: one C file, no dependencies besides Lua
 
 <details>
@@ -39,13 +39,13 @@ Installing
 
 ### Dependencies
 
-Debian/Ubuntu, for Lua 5.3 or 5.4:
+Debian/Ubuntu, for Lua 5.3, 5.4 or 5.5:
 
 ```sh
 apt install cmake pkg-config liblua5.4-dev
 ```
 
-For Lua 5.1, 5.2 or LuaJIT, additionally
+For Lua 5.1 or LuaJIT, additionally
 [lua-compat-5.3](https://github.com/lunarmodules/lua-compat-5.3):
 
 ```sh
@@ -62,10 +62,13 @@ make
 sudo make install
 ```
 
-CMake uses the first Lua found via pkg-config, in the order `lua5.4`,
-`lua5.3`, `luajit`, `lua5.2`, `lua5.1`, `lua`. The module is installed to
-`<prefix>/lib/lua/<version>/devmem.so`, by default
-`/usr/local/lib/lua/5.4/`.
+CMake uses the first Lua found via pkg-config, in the order `lua5.5`,
+`lua5.4`, `lua5.3`, `luajit`, `lua5.2`, `lua5.1`, `lua`. The module is
+installed to `<prefix>/lib/lua/<version>/devmem.so`, e.g.
+`/usr/local/lib/lua/5.5/`.
+
+Lua 5.2 is untested: it needs lua-compat-5.3 headers for 5.2, which Debian
+does not package.
 
 Quickstart
 ----------
