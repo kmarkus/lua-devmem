@@ -1,0 +1,19 @@
+image: debian:testing
+
+test:
+  parallel:
+    matrix:
+      - LUA: ["5.1", "5.3", "5.4", "5.5", "jit"]
+  before_script:
+    - apt-get update -qq
+    - |
+      case "$LUA" in
+        5.1) PKGS="lua5.1 liblua5.1-0-dev lua-compat53-dev" ;;
+        jit) PKGS="luajit libluajit-5.1-dev lua-compat53-dev" ;;
+        *)   PKGS="lua$LUA liblua$LUA-dev" ;;
+      esac
+    - apt-get install -y -qq --no-install-recommends gcc libc6-dev cmake make pkg-config $PKGS
+  script:
+    - cmake -B build
+    - cmake --build build
+    - cd build && ctest --output-on-failure --no-tests=error
