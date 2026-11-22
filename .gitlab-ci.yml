@@ -1,9 +1,6 @@
 image: debian:testing
 
-test:
-  parallel:
-    matrix:
-      - LUA: ["5.1", "5.3", "5.4", "5.5", "jit"]
+.build:
   before_script:
     - apt-get update -qq
     - |
@@ -17,3 +14,19 @@ test:
     - cmake -B build
     - cmake --build build
     - cd build && ctest --output-on-failure --no-tests=error
+
+test:
+  extends: .build
+  parallel:
+    matrix:
+      - LUA: ["5.1", "5.3", "5.4", "5.5", "jit"]
+
+# 32-bit: 64-bit off_t and integer widths. testing has no i386 image
+test-i386:
+  extends: .build
+  image:
+    name: i386/debian:trixie
+    docker:
+      platform: linux/386
+  variables:
+    LUA: "5.4"
