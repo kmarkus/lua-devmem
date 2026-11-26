@@ -104,7 +104,7 @@ static uint8_t* __addrof(struct mmap *m, size_t pos)
 static int addrof(lua_State *L)
 {
 	struct mmap *m  = (struct mmap*) luaL_checkudata(L, 1, MMAP_MT);
-	size_t pos = luaL_checkinteger(L, 2);
+	size_t pos = check_pos(L, m, 2, 1);
 	lua_pushinteger(L, (uintptr_t) __addrof(m, pos));
 	return 1;
 }

@@ -123,7 +123,8 @@ API
   fail.
 - Accesses raise `access out of range` if `[pos, pos + width)` is not within
   `[0, len)`, and `unaligned access` if the address is not a multiple of the
-  access width.
+  access width. `addrof` raises `access out of range` if `pos` is not within
+  `[0, len)`.
 - The mapping is removed when `m` is garbage collected. There is no explicit
   close.
 

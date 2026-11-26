@@ -38,6 +38,9 @@ m:write_float(12, 1.5)
 check("rw float", m:read_float(12) == 1.5)
 check("tostring", tostring(m):find("^mmap "))
 check("addrof", m:addrof(4) - m:addrof(0) == 4)
+check("addrof last byte", m:addrof(15) - m:addrof(0) == 15)
+expect_err("addrof neg pos", "out of range", m.addrof, m, -1)
+expect_err("addrof past end", "out of range", m.addrof, m, 16)
 
 -- region boundaries
 check("last byte ok", pcall(m.read_u8, m, 15))
